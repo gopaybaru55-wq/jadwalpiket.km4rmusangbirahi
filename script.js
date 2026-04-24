@@ -30,22 +30,87 @@ const GROUPS = [
   },
 ];
 
+/* Anchor: tanggal 25 April 2026 = grup index 0 */
 const ANCHOR = new Date('2026-04-25');
 ANCHOR.setHours(0,0,0,0);
 const CYCLE_DAYS = 5;
-const CYCLE_TOTAL = GROUPS.length * CYCLE_DAYS;
+const CYCLE_TOTAL = GROUPS.length * CYCLE_DAYS; /* 30 hari */
 
+/* Hitung grup untuk tanggal tertentu */
 function getGroupForDate(date) {
   const d = new Date(date); d.setHours(0,0,0,0);
   const diff = Math.round((d - ANCHOR) / 86400000);
-  if (diff < 0) return null;
+  if (diff < 0) return null; /* sebelum jadwal dimulai */
+  /* hanya hari pertama setiap periode (kelipatan 5) */
   if (diff % CYCLE_DAYS !== 0) return null;
   const groupIdx = Math.floor(diff / CYCLE_DAYS) % GROUPS.length;
   return GROUPS[groupIdx];
 }
 
+/* semua anggota */
 const ALL_MEMBERS = GROUPS.flatMap(g => g.persons.map((p,i)=>({name:p,photo:g.photos[i]})));
 
+/* ──────────────────────────────────────────
+   SLIDER (2 detik)
+────────────────────────────────────────── */
+(function(){
+  const TOTAL=7, INTERVAL=2000;
+  const track=document.getElementById('sliderTrack');
+  const dots=document.getElementById('sDots');
+  const ctr=document.getElementById('sCtr');
+  const bar=document.getElementById('sBar');
+  let cur=0,timer=null,raf=null,t0=null;
+
+  for(let i=0;i<TOTAL;i++){
+    const d=document.createElement('button');
+    d.className='dot'+(i===0?' active':'');
+    d.onclick=()=>goTo(i,true);
+    dots.appendChild(d);
+  }
+
+  function ui(){
+    track.style.transform=`translateX(-${cur*100}%)`;
+    ctr.textContent=`${cur+1} / ${TOTAL}`;
+    dots.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===cur));
+  }
+
+  function goTo(i,m){ cur=(i+TOTAL)%TOTAL; ui(); if(m)reset(); }
+
+  function prog(){
+    cancelAnimationFrame(raf);
+    bar.style.transition='none'; bar.style.width='0%';
+    t0=performance.now();
+    function step(now){
+      const p=Math.min(((now-t0)/INTERVAL)*100,100);
+      bar.style.width=p+'%';
+      if(p<100) raf=requestAnimationFrame(step);
+    }
+    raf=requestAnimationFrame(step);
+  }
+
+  function start(){ clearInterval(timer); prog(); timer=setInterval(()=>{ cur=(cur+1)%TOTAL; ui(); prog(); },INTERVAL); }
+  function reset(){ clearInterval(timer); cancelAnimationFrame(raf); start(); }
+
+  document.getElementById('sPrev').onclick=()=>goTo(cur-1,true);
+  document.getElementById('sNext').onclick=()=>goTo(cur+1,true);
+
+  let tx=null;
+  const w=document.getElementById('sliderWrap');
+  w.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;},{passive:true});
+  w.addEventListener('touchend',e=>{
+    if(tx===null)return;
+    const d=tx-e.changedTouches[0].clientX;
+    if(Math.abs(d)>40)goTo(d>0?cur+1:cur-1,true);
+    tx=null;
+  });
+  w.onmouseenter=()=>{clearInterval(timer);cancelAnimationFrame(raf);};
+  w.onmouseleave=start;
+  ui(); start();
+})();
+
+/* ──────────────────────────────────────────
+   HELPERS
+────────────────────────────────────────── */
 const today=new Date(); today.setHours(0,0,0,0);
 let weekOffset=0;
 
@@ -60,13 +125,16 @@ function fmtDate(d){
 
 const todayKey=fmtDate(today);
 
+/* localStorage */
 const STORE='naga_hitam_v2';
 let doneMap={};
 function loadLocal(){ try{ doneMap=JSON.parse(localStorage.getItem(STORE))||{}; }catch{ doneMap={}; } }
 function saveLocal(){ localStorage.setItem(STORE,JSON.stringify(doneMap)); }
 loadLocal();
 
-/* CLOCK */
+/* ──────────────────────────────────────────
+   CLOCK
+────────────────────────────────────────── */
 function clock(){
   const n=new Date();
   document.getElementById('live-date').textContent=
@@ -76,7 +144,9 @@ function clock(){
 }
 setInterval(clock,1000); clock();
 
-/* STRIP */
+/* ──────────────────────────────────────────
+   STRIP
+────────────────────────────────────────── */
 function renderStrip(){
   const strip=document.getElementById('today-strip');
   const txt=document.getElementById('strip-text');
@@ -97,11 +167,22 @@ function renderStrip(){
       ? `✅ Piket <strong>${grp.persons.join(' & ')}</strong> sudah selesai!`
       : `🧹 Giliran: <strong>${grp.persons.join(' & ')}</strong> — Semangat!`;
   } else {
-    txt.innerHTML=`📅 Tidak ada jadwal hari ini`;
+    /* cari jadwal terdekat berikutnya */
+    let next=null;
+    for(let i=1;i<=35;i++){
+      const dd=new Date(today); dd.setDate(today.getDate()+i);
+      const g=getGroupForDate(dd);
+      if(g){ next={date:dd,group:g}; break; }
+    }
+    txt.innerHTML=next
+      ? `📅 Piket berikutnya: <strong>${next.group.persons.join(' & ')}</strong> (${next.date.getDate()} ${MON_S[next.date.getMonth()]})`
+      : `📅 Tidak ada jadwal hari ini`;
   }
 }
 
-/* SCHEDULE */
+/* ──────────────────────────────────────────
+   WEEK DATES
+────────────────────────────────────────── */
 function getWeekDates(){
   const dow=today.getDay()===0?6:today.getDay()-1;
   const mon=new Date(today);
@@ -110,67 +191,3 @@ function getWeekDates(){
     const d=new Date(mon); d.setDate(mon.getDate()+i); return d;
   });
 }
-
-function renderSchedule(){
-  const grid=document.getElementById('sched');
-  const dates=getWeekDates();
-
-  let html='';
-
-  dates.forEach((date,idx)=>{
-    const dkey=fmtDate(date);
-    const isSun=date.getDay()===0;
-    const isToday=dkey===todayKey;
-    const done=!!doneMap[dkey];
-    const grp=getGroupForDate(date);
-
-    let cls='day-card';
-    if(isToday) cls+=' is-today live';
-    else if(done) cls+=' done-card';
-    else cls+=' upcoming';
-    if(isSun) cls+=' is-sunday';
-
-    let body='';
-
-    if(isSun){
-      body=`<div class="holiday-pill">🔴 Libur — Minggu</div>`;
-    } else if(grp){
-      const chips=grp.persons.map((p,i)=>`
-        <div class="person-chip">
-          <div class="avatar-sm ${done?'done-av':''}">
-            <img src="${grp.photos[i]}" alt="${p}">
-          </div>
-          <span class="person-nm">${p}</span>
-        </div>`).join('');
-
-      body=`
-        <div class="persons-row">
-          <div class="persons-list">${chips}</div>
-          <div class="done-wrap">
-            <input class="done-toggle" type="checkbox" data-dk="${dkey}" ${done?'checked':''}>
-          </div>
-        </div>`;
-    } else {
-      body=`<div class="no-sched">Tidak ada jadwal piket hari ini</div>`;
-    }
-
-    html+=`<div class="${cls}"><div class="day-row"><div class="card-body">${body}</div></div></div>`;
-  });
-
-  grid.innerHTML=html;
-
-  grid.querySelectorAll('.done-toggle').forEach(chk=>{
-    chk.addEventListener('change',function(){
-      const dk=this.dataset.dk;
-      if(this.checked) doneMap[dk]=true;
-      else delete doneMap[dk];
-      saveLocal();
-      renderSchedule();
-      renderStrip();
-    });
-  });
-}
-
-/* INIT */
-renderStrip();
-renderSchedule();
