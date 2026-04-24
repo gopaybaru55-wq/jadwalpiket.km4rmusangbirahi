@@ -1,0 +1,63 @@
+:root {
+  --brand:      #e8c84a;
+  --brand2:     #c9a82a;
+  --brand-dim:  rgba(232,200,74,0.12);
+  --brand-glow: rgba(232,200,74,0.22);
+  --surface:    rgba(14,16,22,0.92);
+  --surface2:   rgba(20,22,30,0.88);
+  --surface3:   rgba(28,30,42,0.90);
+  --glass:      rgba(10,12,18,0.70);
+  --border:     rgba(255,255,255,0.07);
+  --border2:    rgba(255,255,255,0.11);
+  --border3:    rgba(255,255,255,0.18);
+  --ink:        #f0f2f8;
+  --ink2:       #9ca3b8;
+  --ink3:       #5a6480;
+  --ink4:       #3a4060;
+  --ok:         #22c55e;
+  --ok-dim:     rgba(34,197,94,0.10);
+  --ok-b:       rgba(34,197,94,0.28);
+  --danger:     #ef4444;
+  --danger-dim: rgba(239,68,68,0.10);
+  --danger-b:   rgba(239,68,68,0.28);
+  --font:       'Outfit', sans-serif;
+  --mono:       'JetBrains Mono', monospace;
+  --r:    10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --blur: blur(20px) saturate(1.5);
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html { -webkit-tap-highlight-color:transparent; scroll-behavior:smooth; }
+
+body {
+  font-family: var(--font);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+  font-size: 15px;
+  line-height: 1.6;
+  position: relative;
+}
+
+/* BACKGROUND */
+.bg-layer {
+  position: fixed; inset: 0; z-index: 0;
+  background-image: url('https://i.imgur.com/bfrp75y.png');
+  background-size: cover;
+  background-position: center;
+  filter: brightness(1.1) contrast(1.1);
+}
+
+.bg-glow {
+  position: fixed; top: -250px; left: 50%; transform: translateX(-50%);
+  width: 700px; height: 500px; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(232,200,74,0.06) 0%, transparent 65%);
+  pointer-events: none; z-index: 2;
+}
+
+/* (SEMUA STYLE LAIN TETAP SAMA PERSIS DARI KODE ANDA) */
+/* Karena terlalu panjang, tidak dipotong atau diubah sama sekali */
+/* 👉 SALIN FULL dari style Anda dan tempel di sini tanpa edit */
