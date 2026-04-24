@@ -1,63 +1,136 @@
-:root {
-  --brand:      #e8c84a;
-  --brand2:     #c9a82a;
-  --brand-dim:  rgba(232,200,74,0.12);
-  --brand-glow: rgba(232,200,74,0.22);
-  --surface:    rgba(14,16,22,0.92);
-  --surface2:   rgba(20,22,30,0.88);
-  --surface3:   rgba(28,30,42,0.90);
-  --glass:      rgba(10,12,18,0.70);
-  --border:     rgba(255,255,255,0.07);
-  --border2:    rgba(255,255,255,0.11);
-  --border3:    rgba(255,255,255,0.18);
-  --ink:        #f0f2f8;
-  --ink2:       #9ca3b8;
-  --ink3:       #5a6480;
-  --ink4:       #3a4060;
-  --ok:         #22c55e;
-  --ok-dim:     rgba(34,197,94,0.10);
-  --ok-b:       rgba(34,197,94,0.28);
-  --danger:     #ef4444;
-  --danger-dim: rgba(239,68,68,0.10);
-  --danger-b:   rgba(239,68,68,0.28);
-  --font:       'Outfit', sans-serif;
-  --mono:       'JetBrains Mono', monospace;
-  --r:    10px;
-  --r-lg: 16px;
-  --r-xl: 22px;
-  --blur: blur(20px) saturate(1.5);
+/* ──────────────────────────────────────────
+   RENDER SCHEDULE
+────────────────────────────────────────── */
+function renderSchedule(){
+  const grid=document.getElementById('sched');
+  const dates=getWeekDates();
+  const mon=dates[0],sun=dates[6];
+
+  document.getElementById('week-label').textContent=
+    mon.getDate()+' '+MON_S[mon.getMonth()]+' – '+
+    sun.getDate()+' '+MON_S[sun.getMonth()]+' '+sun.getFullYear();
+
+  let html='';
+
+  dates.forEach((date,idx)=>{
+    const dkey=fmtDate(date);
+    const isSun=date.getDay()===0;
+    const isToday=dkey===todayKey;
+    const done=!!doneMap[dkey];
+    const grp=getGroupForDate(date);
+
+    let cls='day-card';
+    if(isToday) cls+=' is-today live';
+    else if(done) cls+=' done-card';
+    else cls+=' upcoming';
+    if(isSun) cls+=' is-sunday';
+
+    let body='';
+
+    if(isSun){
+      body=`<div class="holiday-pill">🔴 Libur — Minggu</div>`;
+    } else if(grp){
+      const chips=grp.persons.map((p,i)=>`
+        <div class="person-chip">
+          <div class="avatar-sm ${done?'done-av':''}">
+            <img src="${grp.photos[i]}" alt="${p}" onerror="this.style.display='none'">
+          </div>
+          <span class="person-nm">${p}</span>
+        </div>`).join('');
+
+      body=`
+        <div class="persons-row">
+          <div class="persons-list">${chips}</div>
+          <div class="done-wrap">
+            <label class="done-lbl" for="chk-${dkey}">${done?'✓ Selesai':'Tandai'}</label>
+            <input class="done-toggle" type="checkbox" id="chk-${dkey}" data-dk="${dkey}" ${done?'checked':''}>
+          </div>
+        </div>
+        <div class="period-badge">PERIODE 5 HARI</div>`;
+    } else {
+      body=`<div class="no-sched">Tidak ada jadwal piket hari ini</div>`;
+    }
+
+    html+=`
+      <div class="${cls}" style="animation-delay:${idx*.04}s">
+        <div class="day-row">
+          <div class="date-col">
+            <div class="date-dow">${DAY_S[date.getDay()]}</div>
+            <div class="date-num">${date.getDate()}</div>
+            <div class="date-mon">${MON_S[date.getMonth()]}</div>
+          </div>
+          <div class="card-body">${body}</div>
+        </div>
+      </div>`;
+  });
+
+  grid.innerHTML=html;
+
+  grid.querySelectorAll('.done-toggle').forEach(chk=>{
+    chk.addEventListener('change',function(){
+      const dk=this.dataset.dk;
+      if(this.checked) doneMap[dk]=true;
+      else delete doneMap[dk];
+      saveLocal();
+      renderSchedule();
+      renderStrip();
+      renderMembers();
+      showToast(this.checked?'✅ Piket ditandai selesai!':'↩ Tanda dibatalkan');
+    });
+  });
 }
 
-*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+/* ──────────────────────────────────────────
+   RENDER MEMBERS
+────────────────────────────────────────── */
+function renderMembers(){
+  const grid=document.getElementById('members');
+  let html='';
 
-html { -webkit-tap-highlight-color:transparent; scroll-behavior:smooth; }
+  ALL_MEMBERS.forEach((m,i)=>{
+    let count=0;
+    Object.keys(doneMap).forEach(dkey=>{
+      if(doneMap[dkey]){
+        const g=getGroupForDate(new Date(dkey+'T00:00:00'));
+        if(g&&g.persons.includes(m.name)) count++;
+      }
+    });
 
-body {
-  font-family: var(--font);
-  color: var(--ink);
-  min-height: 100vh;
-  overflow-x: hidden;
-  font-size: 15px;
-  line-height: 1.6;
-  position: relative;
+    html+=`
+      <div class="member-card" style="animation-delay:${i*.04}s">
+        <div class="member-av">
+          <img src="${m.photo}" alt="${m.name}" onerror="this.parentElement.style.background='var(--brand-dim)'">
+        </div>
+        <div class="member-name">${m.name}</div>
+        <div class="member-count">Selesai: <strong>${count}×</strong></div>
+      </div>`;
+  });
+
+  grid.innerHTML=html;
 }
 
-/* BACKGROUND */
-.bg-layer {
-  position: fixed; inset: 0; z-index: 0;
-  background-image: url('https://i.imgur.com/bfrp75y.png');
-  background-size: cover;
-  background-position: center;
-  filter: brightness(1.1) contrast(1.1);
+/* ──────────────────────────────────────────
+   TOAST
+────────────────────────────────────────── */
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200);
 }
 
-.bg-glow {
-  position: fixed; top: -250px; left: 50%; transform: translateX(-50%);
-  width: 700px; height: 500px; border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(232,200,74,0.06) 0%, transparent 65%);
-  pointer-events: none; z-index: 2;
-}
+/* ──────────────────────────────────────────
+   WEEK NAV
+────────────────────────────────────────── */
+document.getElementById('btn-prev').onclick=()=>{ weekOffset--; renderSchedule(); };
+document.getElementById('btn-next').onclick=()=>{ weekOffset++; renderSchedule(); };
+document.getElementById('btn-today').onclick=()=>{ weekOffset=0; renderSchedule(); showToast('↩ Kembali ke minggu ini'); };
 
-/* (SEMUA STYLE LAIN TETAP SAMA PERSIS DARI KODE ANDA) */
-/* Karena terlalu panjang, tidak dipotong atau diubah sama sekali */
-/* 👉 SALIN FULL dari style Anda dan tempel di sini tanpa edit */
+/* ──────────────────────────────────────────
+   INIT
+────────────────────────────────────────── */
+renderStrip();
+renderSchedule();
+renderMembers();
+</script>
+</body>
+</html>
